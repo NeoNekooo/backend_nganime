@@ -11,6 +11,7 @@ const app = express();
 const port = process.env.PORT || 4000;
 const otakudesu = new Odesus();
 const baseUrl = 'https://otakudesu.blog';
+const OTAKU_BASE = 'https://otakudesu.asia/';
 
 const cache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
 
