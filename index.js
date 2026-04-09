@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -12,8 +13,39 @@ const baseUrl = 'https://otakudesu.blog';
 
 const cache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
 
+// --- MIDDLEWARE KEAMANAN ---
+const apiKeyMiddleware = (req, res, next) => {
+    const clientKey = req.header('x-api-key');
+    const secretKey = process.env.API_KEY || 'nganim-secret-key-2024';
+
+    if (!clientKey || clientKey !== secretKey) {
+        console.log(`[AUTH] Akses Ditolak: ${req.ip} mencoba akses tanpa key yang valid.`);
+        return res.status(401).json({ 
+            status: "error", 
+            message: "Unauthorized: API Key tidak valid atau tidak ditemukan." 
+        });
+    }
+    next();
+};
+
 app.use(cors());
 app.use(express.json());
+
+// --- FIX: URL REWRITER UNTUK HOSTING (DOMAINESIA/PASSENGER) ---
+// Beberapa hosting otomatis nambahin /public atau /index.php di depan URL.
+// Middleware ini nge-bersihin itu biar route kita tetep cocok.
+app.use((req, res, next) => {
+    if (req.url.startsWith('/public')) {
+        req.url = req.url.replace('/public', '');
+    }
+    if (req.url.startsWith('/index.php')) {
+        req.url = req.url.replace('/index.php', '');
+    }
+    next();
+});
+
+// Terapkan middleware keamanan ke semua route /api
+app.use('/api', apiKeyMiddleware);
 
 const stealthHeaders = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
@@ -144,6 +176,27 @@ app.get('/api/anime/detail', async (req, res) => {
                 episodes: episodes
             }
         });
+    } catch (e) {
+        res.status(500).json({ status: "error", message: e.message });
+    }
+});
+
+// Endpoint baru untuk mengambil daftar mirror mentah agar bisa di-crack di sisi Flutter (untuk menghindari 403 Forbidden)
+app.get('/api/episode/mirrors', async (req, res) => {
+    const url = req.query.url;
+    try {
+        console.log(`[MIRRORS] Mengambil daftar mirror untuk: ${url}`);
+        const episodeRes = await axios.get(url, { headers: stealthHeaders, timeout: 10000 });
+        const $ = cheerio.load(episodeRes.data);
+
+        const mirrors = [];
+        $('.mirrorstream ul li a').each((i, el) => {
+            const dataBase64 = $(el).attr('data-content');
+            const provider = $(el).text().trim().toLowerCase();
+            if (dataBase64) mirrors.push({ provider, dataBase64 });
+        });
+
+        res.json({ status: "success", data: mirrors });
     } catch (e) {
         res.status(500).json({ status: "error", message: e.message });
     }
