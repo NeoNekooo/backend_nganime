@@ -208,7 +208,8 @@ app.get('/api/episode/mirrors', async (req, res) => {
 
         // Ambil semua resolusi (360p, 480p, 720p)
         $('.mirrorstream ul').each((i, ul) => {
-            const resolution = $(ul).find('span').text().replace('Mirror ', '').trim() || 'Unknown';
+            // Kita ambil teks dari ul tapi buang teks dari li (link) biar dapet label resolusinya aja
+            const resolution = $(ul).contents().not('li').text().replace('Mirror ', '').trim() || 'Unknown';
             $(ul).find('li a').each((j, el) => {
                 const dataContent = $(el).attr('data-content');
                 const provider = $(el).text().trim().toLowerCase();
