@@ -160,21 +160,36 @@ app.get('/api/schedule', async (req, res) => {
         const $ = cheerio.load(response.data);
         const schedule = [];
 
-        $('.kg-jadwal-harian').each((i, el) => {
-            const day = $(el).find('.kg-hari').text().trim();
-            const animes = [];
-            $(el).find('.kg-anime ul li').each((j, animeEl) => {
-                const a = $(animeEl).find('a');
-                animes.push({
-                    name: a.text().trim(),
-                    url: a.attr('href')
-                });
-            });
-            if (day && animes.length > 0) {
-                schedule.push({ day, animes });
+        // Struktur Otakudesu: .kgjwl-header (Hari) diikuti oleh beberapa .kgjwl-item (Anime)
+        let currentDay = null;
+        let currentAnimes = [];
+
+        // Kita cari semua elemen yang relevan di Container utama jadwal
+        $('.kgjwl-header, .kgjwl-item').each((i, el) => {
+            if ($(el).hasClass('kgjwl-header')) {
+                // Jika ketemu Header baru, simpan hari sebelumnya (jika ada) dan reset
+                if (currentDay && currentAnimes.length > 0) {
+                    schedule.push({ day: currentDay, animes: currentAnimes });
+                }
+                currentDay = $(el).text().trim();
+                currentAnimes = [];
+            } else if ($(el).hasClass('kgjwl-item')) {
+                const a = $(el).find('a');
+                if (a.length > 0) {
+                    currentAnimes.push({
+                        name: a.text().trim(),
+                        url: a.attr('href')
+                    });
+                }
             }
         });
 
+        // Push hari terakhir
+        if (currentDay && currentAnimes.length > 0) {
+            schedule.push({ day: currentDay, animes: currentAnimes });
+        }
+
+        console.log(`[JADWAL] Berhasil mengurai ${schedule.length} hari rilis.`);
         res.json({ status: "success", data: schedule });
     } catch (e) {
         console.error('Error Schedule:', e.message);
