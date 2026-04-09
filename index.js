@@ -182,38 +182,43 @@ app.get('/api/anime/detail', async (req, res) => {
     }
 });
 
-// Endpoint baru untuk mengambil daftar mirror mentah (Bypass Splash Page)
+// --- 1. AMBIL DAFTAR MIRROR (DENGAN BYPASS) ---
 app.get('/api/episode/mirrors', async (req, res) => {
-    let url = req.query.url;
+    const { url: episodeUrl } = req.query;
+    if (!episodeUrl) return res.status(400).json({ status: 'error', message: 'URL episode wajib ada' });
+
     try {
-        // Tambahkan skip_gate=1 kalau belum ada buat nembus splash page
-        if (!url.includes('skip_gate=1')) {
-            url += (url.includes('?') ? '&' : '?') + 'skip_gate=1';
-        }
-
-        console.log(`[MIRRORS] Mengambil: ${url}`);
+        console.log(`[BACKEND] Mengambil Mirror dari: ${episodeUrl}`);
         
-        const episodeRes = await axios.get(url, { 
+        // Tambahkan skip_gate dan Cookie buat nembus Splash Page
+        const targetUrl = episodeUrl.includes('?') ? `${episodeUrl}&skip_gate=1` : `${episodeUrl}?skip_gate=1`;
+
+        const response = await axios.get(targetUrl, {
             headers: {
-                ...stealthHeaders,
-                'Cookie': 'otakudesu_gate=1; skip_gate=1', // Sosok sakti buat nembus gerbang
-            }, 
-            timeout: 10000 
-        });
-        
-        const $ = cheerio.load(episodeRes.data);
-        const mirrors = [];
-        $('.mirrorstream ul li a').each((i, el) => {
-            const dataBase64 = $(el).attr('data-content');
-            const provider = $(el).text().trim().toLowerCase();
-            if (dataBase64) mirrors.push({ provider, dataBase64 });
+                'Cookie': 'otakudesu_gate=1; skip_gate=1',
+                'Referer': OTAKU_BASE,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+            },
+            timeout: 10000
         });
 
-        console.log(`[MIRRORS] Ditemukan: ${mirrors.length} mirror`);
-        res.json({ status: "success", data: mirrors });
-    } catch (e) {
-        console.error(`[MIRRORS ERR] ${e.message}`);
-        res.status(500).json({ status: "error", message: e.message });
+        const $ = cheerio.load(response.data);
+        const mirrors = [];
+
+        // Parsing elemen .mirrorstream (Sama kayak di Flutter tapi dilakukan di Server)
+        $('.mirrorstream ul li a').each((i, el) => {
+            const dataContent = $(el).attr('data-content');
+            const provider = $(el).text().trim().toLowerCase();
+            if (dataContent) {
+                mirrors.push({ provider, dataBase64: dataContent });
+            }
+        });
+
+        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror.`);
+        res.json({ status: 'success', data: mirrors });
+    } catch (error) {
+        console.error('[BACKEND] Error Mirrors:', error.message);
+        res.status(500).json({ status: 'error', message: error.message });
     }
 });
 
