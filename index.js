@@ -206,16 +206,23 @@ app.get('/api/episode/mirrors', async (req, res) => {
         const $ = cheerio.load(response.data);
         const mirrors = [];
 
-        // Parsing elemen .mirrorstream (Sama kayak di Flutter tapi dilakukan di Server)
-        $('.mirrorstream ul li a').each((i, el) => {
-            const dataContent = $(el).attr('data-content');
-            const provider = $(el).text().trim().toLowerCase();
-            if (dataContent) {
-                mirrors.push({ provider, dataBase64: dataContent });
-            }
+        // Ambil semua resolusi (360p, 480p, 720p)
+        $('.mirrorstream').each((i, resBlock) => {
+            const resolution = $(resBlock).prev().text().trim() || 'Unknown';
+            $(resBlock).find('ul li a').each((j, el) => {
+                const dataContent = $(el).attr('data-content');
+                const provider = $(el).text().trim().toLowerCase();
+                if (dataContent) {
+                    mirrors.push({ 
+                        provider: provider, 
+                        resolution: resolution,
+                        dataBase64: dataContent 
+                    });
+                }
+            });
         });
 
-        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror.`);
+        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror: ${mirrors.map(m => m.provider).join(', ')}`);
         res.json({ status: 'success', data: mirrors });
     } catch (error) {
         console.error('[BACKEND] Error Mirrors:', error.message);
