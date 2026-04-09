@@ -182,14 +182,26 @@ app.get('/api/anime/detail', async (req, res) => {
     }
 });
 
-// Endpoint baru untuk mengambil daftar mirror mentah agar bisa di-crack di sisi Flutter (untuk menghindari 403 Forbidden)
+// Endpoint baru untuk mengambil daftar mirror mentah (Bypass Splash Page)
 app.get('/api/episode/mirrors', async (req, res) => {
-    const url = req.query.url;
+    let url = req.query.url;
     try {
-        console.log(`[MIRRORS] Mengambil daftar mirror untuk: ${url}`);
-        const episodeRes = await axios.get(url, { headers: stealthHeaders, timeout: 10000 });
-        const $ = cheerio.load(episodeRes.data);
+        // Tambahkan skip_gate=1 kalau belum ada buat nembus splash page
+        if (!url.includes('skip_gate=1')) {
+            url += (url.includes('?') ? '&' : '?') + 'skip_gate=1';
+        }
 
+        console.log(`[MIRRORS] Mengambil: ${url}`);
+        
+        const episodeRes = await axios.get(url, { 
+            headers: {
+                ...stealthHeaders,
+                'Cookie': 'otakudesu_gate=1; skip_gate=1', // Sosok sakti buat nembus gerbang
+            }, 
+            timeout: 10000 
+        });
+        
+        const $ = cheerio.load(episodeRes.data);
         const mirrors = [];
         $('.mirrorstream ul li a').each((i, el) => {
             const dataBase64 = $(el).attr('data-content');
@@ -197,8 +209,10 @@ app.get('/api/episode/mirrors', async (req, res) => {
             if (dataBase64) mirrors.push({ provider, dataBase64 });
         });
 
+        console.log(`[MIRRORS] Ditemukan: ${mirrors.length} mirror`);
         res.json({ status: "success", data: mirrors });
     } catch (e) {
+        console.error(`[MIRRORS ERR] ${e.message}`);
         res.status(500).json({ status: "error", message: e.message });
     }
 });
