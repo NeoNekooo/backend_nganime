@@ -207,9 +207,9 @@ app.get('/api/episode/mirrors', async (req, res) => {
         const mirrors = [];
 
         // Ambil semua resolusi (360p, 480p, 720p)
-        $('.mirrorstream').each((i, resBlock) => {
-            const resolution = $(resBlock).prev().text().trim() || 'Unknown';
-            $(resBlock).find('ul li a').each((j, el) => {
+        $('.mirrorstream ul').each((i, ul) => {
+            const resolution = $(ul).find('span').text().replace('Mirror ', '').trim() || 'Unknown';
+            $(ul).find('li a').each((j, el) => {
                 const dataContent = $(el).attr('data-content');
                 const provider = $(el).text().trim().toLowerCase();
                 if (dataContent) {
@@ -222,7 +222,7 @@ app.get('/api/episode/mirrors', async (req, res) => {
             });
         });
 
-        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror: ${mirrors.map(m => m.provider).join(', ')}`);
+        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror: ${mirrors.map(m => `${m.provider}(${m.resolution})`).join(', ')}`);
         res.json({ status: 'success', data: mirrors });
     } catch (error) {
         console.error('[BACKEND] Error Mirrors:', error.message);
