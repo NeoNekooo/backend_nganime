@@ -153,6 +153,35 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
+app.get('/api/schedule', async (req, res) => {
+    try {
+        console.log(`[JADWAL] Mengambil jadwal rilis harian...`);
+        const response = await axios.get(`${baseUrl}/jadwal-rilis/`, { headers: stealthHeaders, timeout: 10000 });
+        const $ = cheerio.load(response.data);
+        const schedule = [];
+
+        $('.kg-jadwal-harian').each((i, el) => {
+            const day = $(el).find('.kg-hari').text().trim();
+            const animes = [];
+            $(el).find('.kg-anime ul li').each((j, animeEl) => {
+                const a = $(animeEl).find('a');
+                animes.push({
+                    name: a.text().trim(),
+                    url: a.attr('href')
+                });
+            });
+            if (day && animes.length > 0) {
+                schedule.push({ day, animes });
+            }
+        });
+
+        res.json({ status: "success", data: schedule });
+    } catch (e) {
+        console.error('Error Schedule:', e.message);
+        res.status(500).json({ status: "error", message: e.message });
+    }
+});
+
 app.get('/api/anime/detail', async (req, res) => {
     const url = req.query.url;
     try {
@@ -254,10 +283,24 @@ app.get('/api/episode/player', async (req, res) => {
         let finalStreamUrl = null;
         let successfulProvider = null;
 
-        // Coba mirror satu per satu, prioritaskan yang BUKAN mega
+        // Coba mirror satu per satu, prioritaskan yang audio-nya dikenal lebih jernih (BUKAN vidhide jika ada opsi lain)
         mirrors.sort((a, b) => {
-            if (a.provider.includes('vidhide') || a.provider.includes('odfile')) return -1;
+            // Prioritas 1: odstream, filemoon (Biasanya audio lebih jernih)
+            const highQuality = ['odstream', 'filemoon', 'filedon'];
+            const aIsHQ = highQuality.some(p => a.provider.includes(p));
+            const bIsHQ = highQuality.some(p => b.provider.includes(p));
+
+            if (aIsHQ && !bIsHQ) return -1;
+            if (!aIsHQ && bIsHQ) return 1;
+
+            // Prioritas Rendah: vidhide (Audio sering kena kompres)
+            if (a.provider.includes('vidhide')) return 1;
+            if (b.provider.includes('vidhide')) return -1;
+            
+            // Terakhir: mega (Skip manual di loop bawah)
             if (a.provider.includes('mega')) return 1;
+            if (b.provider.includes('mega')) return -1;
+            
             return 0;
         });
 
