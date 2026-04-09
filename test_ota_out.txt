@@ -1,0 +1,20 @@
+Fetch: https://otakudesu.blog/episode/mwtd-episode-1-sub-indo/
+Script Count: 20
+Mirrors:
+eyJpZCI6MTk0NjU3LCJpIjowLCJxIjoiMzYwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoxLCJxIjoiMzYwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoyLCJxIjoiMzYwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjowLCJxIjoiNDgwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoxLCJxIjoiNDgwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoyLCJxIjoiNDgwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjozLCJxIjoiNDgwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjowLCJxIjoiNzIwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoxLCJxIjoiNzIwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjoyLCJxIjoiNzIwcCJ9
+eyJpZCI6MTk0NjU3LCJpIjozLCJxIjoiNzIwcCJ9
+Iframe: undefined
+Html excerpt around player:
+<div class="vezone"><script type="text/javascript">//<![CDATA[
+$(document).ready(function(){$("#lightsoff").css("height", $(document).height()).hide();$(".lightSwitcher").click(function(){$("#lightsoff").toggle();if ($("#lightsoff").is(":hidden"))
+$(this).html("Cinema Off").removeClass("turnedOff");else
+$(this).html("Cinema Mode").addClass("turnedOff");});});//]]></script><link href="https://otakudesu.blog/wp-content/custom/pofdsc.css" rel="stylesheet"><script src="https://ajax.googleapis.com/aj

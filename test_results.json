@@ -1,0 +1,42 @@
+[
+  {
+    "url": "https://otakudesu.blog/",
+    "status": 200,
+    "title": "Otaku Desu | Nonton dan Streaming Anime Subtitle Indonesia"
+  },
+  {
+    "url": "https://otakudesu.cloud/",
+    "status": "ERR_TLS_CERT_ALTNAME_INVALID",
+    "title": "Error"
+  },
+  {
+    "url": "https://v2.samehadaku.how/",
+    "status": 403,
+    "title": "Just a moment..."
+  },
+  {
+    "url": "https://samehadaku.care/",
+    "status": 200,
+    "title": "Samehadaku - Fansub Anime Subtitle Indonesia "
+  },
+  {
+    "url": "https://kuramanime.net/",
+    "status": "ERR_TLS_CERT_ALTNAME_INVALID",
+    "title": "Error"
+  },
+  {
+    "url": "https://kuramanime.run/",
+    "status": "ERR_TLS_CERT_ALTNAME_INVALID",
+    "title": "Error"
+  },
+  {
+    "url": "https://anoboy.icu/",
+    "status": "ERR_TLS_CERT_ALTNAME_INVALID",
+    "title": "Error"
+  },
+  {
+    "url": "https://anoboy.cam/",
+    "status": "ENOTFOUND",
+    "title": "Error"
+  }
+]
