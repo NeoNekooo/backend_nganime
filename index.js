@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const qs = require('qs');
 const NodeCache = require('node-cache');
 const { Odesus } = require('odesus');
 
@@ -207,7 +208,6 @@ app.get('/api/episode/player', async (req, res) => {
     try {
         console.log(`[VIDEO] Mencari Link (Manual Cracker) untuk: ${url}`);
 
-        const qs = require('qs');
         const episodeRes = await axios.get(url, { headers: stealthHeaders, timeout: 10000 });
         const $ = cheerio.load(episodeRes.data);
 
