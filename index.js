@@ -368,23 +368,39 @@ app.post('/api/episode/crack', async (req, res) => {
         });
         let body = embedRes.data;
 
-        // --- EKSTRAKSI KHUSUS DESUSTREAM (Mirror Populer Anime Lama) ---
-        const desuMatch = body.match(/otakudesu\('(\{.*?\})'\)/);
-        if (desuMatch && desuMatch[1]) {
+        // --- EKSTRAKSI UNIVERSAL (MENCARI POLA 'FILE' DI SELURUH SKRIP) ---
+        const universalFileRegex = /[{,]\s*["']?file["']?\s*:\s*["'](https?:\/\/[^"']+)["']/i;
+        const uniMatch = body.match(universalFileRegex);
+        if (uniMatch && uniMatch[1]) {
+            console.log(`[CRACKER] UNIVERSAL DETECTED! Link: ${uniMatch[1]}`);
+            return res.json({
+                status: 'success',
+                url: uniMatch[1],
+                isEmbed: false,
+                embedUrl: iframeUrl,
+                cookie: cleanCookie
+            });
+        }
+
+        // --- EKSTRAKSI KHUSUS FUNGSI WRAPPER (otakudesu, setup, dll) ---
+        const wrapperMatch = body.match(/(?:otakudesu|setup|player|sources)\s*\(\s*['"]?(\{.*?\})['"]?\s*\)/s);
+        if (wrapperMatch && wrapperMatch[1]) {
             try {
-                const desuData = JSON.parse(desuMatch[1]);
-                if (desuData.file) {
-                    console.log(`[CRACKER] DESUSTREAM DETECTED! Link: ${desuData.file}`);
+                const cleanJson = wrapperMatch[1].replace(/'/g, '"'); // Fix single quotes
+                const jsonData = JSON.parse(cleanJson);
+                const fileUrl = jsonData.file || jsonData.src || (jsonData.sources && jsonData.sources[0]?.file);
+                if (fileUrl) {
+                    console.log(`[CRACKER] WRAPPER DETECTED! Link: ${fileUrl}`);
                     return res.json({
                         status: 'success',
-                        url: desuData.file,
+                        url: fileUrl,
                         isEmbed: false,
                         embedUrl: iframeUrl,
                         cookie: cleanCookie
                     });
                 }
-            } catch (jsError) {
-                console.log("[CRACKER] Gagal parse JSON Desustream.");
+            } catch (e) {
+                console.log("[CRACKER] Gagal bongkar Wrapper JSON.");
             }
         }
 
