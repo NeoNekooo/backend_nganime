@@ -241,24 +241,29 @@ app.get('/api/episode/mirrors', async (req, res) => {
         const $ = cheerio.load(response.data);
         const mirrors = [];
 
-        // Ambil semua resolusi (360p, 480p, 720p)
-        $('.mirrorstream ul').each((i, ul) => {
-            // Kita ambil teks dari ul tapi buang teks dari li (link) biar dapet label resolusinya aja
-            const resolution = $(ul).contents().not('li').text().replace('Mirror ', '').trim() || 'Unknown';
-            $(ul).find('li a').each((j, el) => {
-                const dataContent = $(el).attr('data-content');
-                const provider = $(el).text().trim().toLowerCase();
-                if (dataContent) {
-                    mirrors.push({ 
-                        provider: provider, 
-                        resolution: resolution,
-                        dataBase64: dataContent 
-                    });
-                }
-            });
+        // Ambil SEMUA mirror tanpa pilih kasih
+        $('.mirrorstream li a').each((i, el) => {
+            const dataContent = $(el).attr('data-content');
+            const provider = $(el).text().trim().toLowerCase();
+            
+            // Cari resolusi di parent atau elemen terdekat
+            let resolution = 'Unknown';
+            const parentText = $(el).closest('ul').contents().not('li').text();
+            if (parentText.includes('360p')) resolution = '360p';
+            else if (parentText.includes('480p')) resolution = '480p';
+            else if (parentText.includes('720p')) resolution = '720p';
+            else if (parentText.includes('1080p')) resolution = '1080p';
+
+            if (dataContent) {
+                mirrors.push({ 
+                    provider: provider, 
+                    resolution: resolution,
+                    dataBase64: dataContent 
+                });
+            }
         });
 
-        console.log(`[BACKEND] Berhasil nemu ${mirrors.length} mirror: ${mirrors.map(m => `${m.provider}(${m.resolution})`).join(', ')}`);
+        console.log(`[BACKEND] Total Mirror: ${mirrors.length}. Providers: ${[...new Set(mirrors.map(m => m.provider))].join(', ')}`);
         res.json({ status: 'success', data: mirrors });
     } catch (error) {
         console.error('[BACKEND] Error Mirrors:', error.message);
