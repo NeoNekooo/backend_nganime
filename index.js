@@ -381,14 +381,28 @@ app.post('/api/episode/crack', async (req, res) => {
             }
         }
 
-        const videoRegex = /(https?:\/\/[^\s\'\"]+\.(?:m3u8|mp4)[^\s\'\"]*)/i;
-        const match = body.match(videoRegex);
+        // --- EKSTRAKSI AGRESIF (TAMPALAN BARU) ---
+        const videoPatterns = [
+            /(https?:\/\/[^\s\'\"]+\.(?:m3u8|mp4|ts|mkv|avi)[^\s\'\"]*)/i, // Standard files
+            /["'](https?:\/\/[^"']+\/playlist\.m3u8[^"']*)["']/, // Playlist pattern
+            /file:\s*["'](https?:\/\/[^"']+)["']/, // File object pattern
+            /src:\s*["'](https?:\/\/[^"']+)["']/ // Source object pattern
+        ];
 
-        if (match) {
-            console.log(`[CRACKER] BERHASIL! Link Video: ${match[1]}`);
+        let videoUrlFound = null;
+        for (const pattern of videoPatterns) {
+            const match = body.match(pattern);
+            if (match && match[1]) {
+                videoUrlFound = match[1];
+                break;
+            }
+        }
+
+        if (videoUrlFound) {
+            console.log(`[CRACKER] BERHASIL! Link Video: ${videoUrlFound}`);
             return res.json({
                 status: 'success',
-                url: match[1],
+                url: videoUrlFound,
                 isEmbed: false,
                 embedUrl: iframeUrl,
                 cookie: cleanCookie
