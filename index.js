@@ -155,41 +155,32 @@ app.get('/api/search', async (req, res) => {
 
 app.get('/api/schedule', async (req, res) => {
     try {
-        console.log(`[JADWAL] Mengambil jadwal rilis harian...`);
-        const response = await axios.get(`${baseUrl}/jadwal-rilis/`, { headers: stealthHeaders, timeout: 10000 });
+        console.log(`[JADWAL] Mengambil jadwal rilis terbaru dari ongoing-anime...`);
+        const response = await axios.get(`${baseUrl}/ongoing-anime/`, { headers: stealthHeaders, timeout: 10000 });
         const $ = cheerio.load(response.data);
-        const schedule = [];
+        const scheduleMap = {};
 
-        // Struktur Otakudesu: .kgjwl-header (Hari) diikuti oleh beberapa .kgjwl-item (Anime)
-        let currentDay = null;
-        let currentAnimes = [];
+        $('.venz ul li').each((i, el) => {
+            const title = $(el).find('h2.jdlflm').text().trim();
+            const url = $(el).find('a').attr('href');
+            const day = $(el).find('.epztipe').text().trim(); // Contoh: "Senin", "Selasa"
+            const episode = $(el).find('.epz').text().trim();
 
-        // Kita cari semua elemen yang relevan di Container utama jadwal
-        $('.kgjwl-header, .kgjwl-item').each((i, el) => {
-            if ($(el).hasClass('kgjwl-header')) {
-                // Jika ketemu Header baru, simpan hari sebelumnya (jika ada) dan reset
-                if (currentDay && currentAnimes.length > 0) {
-                    schedule.push({ day: currentDay, animes: currentAnimes });
+            if (day && title) {
+                if (!scheduleMap[day]) {
+                    scheduleMap[day] = [];
                 }
-                currentDay = $(el).text().trim();
-                currentAnimes = [];
-            } else if ($(el).hasClass('kgjwl-item')) {
-                const a = $(el).find('a');
-                if (a.length > 0) {
-                    currentAnimes.push({
-                        name: a.text().trim(),
-                        url: a.attr('href')
-                    });
-                }
+                scheduleMap[day].push({ name: title, url: url, ep: episode });
             }
         });
 
-        // Push hari terakhir
-        if (currentDay && currentAnimes.length > 0) {
-            schedule.push({ day: currentDay, animes: currentAnimes });
-        }
+        // Ubah Map ke Array sesuai permintaan frontend
+        const schedule = Object.keys(scheduleMap).map(day => ({
+            day: day,
+            animes: scheduleMap[day]
+        }));
 
-        console.log(`[JADWAL] Berhasil mengurai ${schedule.length} hari rilis.`);
+        console.log(`[JADWAL] Berhasil mengurai ${schedule.length} hari dari Ongoing.`);
         res.json({ status: "success", data: schedule });
     } catch (e) {
         console.error('Error Schedule:', e.message);
@@ -271,6 +262,81 @@ app.get('/api/episode/mirrors', async (req, res) => {
         res.json({ status: 'success', data: mirrors });
     } catch (error) {
         console.error('[BACKEND] Error Mirrors:', error.message);
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+});
+
+// --- 2. CRACKER PREMIUM (SERVER-SIDE) ---
+app.post('/api/episode/crack', async (req, res) => {
+    const { dataBase64, provider } = req.body;
+    if (!dataBase64) return res.status(400).json({ status: 'error', message: 'Data base64 wajib ada' });
+
+    try {
+        console.log(`[CRACKER] Mendapatkan permintaan crack untuk provider: ${provider}`);
+        const decoded = JSON.parse(Buffer.from(dataBase64, 'base64').toString('ascii'));
+        
+        // 1. Ambil Nonce
+        const nonceRes = await axios.post(`${baseUrl}/wp-admin/admin-ajax.php`, 
+            qs.stringify({ action: 'aa1208d27f29ca340c92c66d1926f13f' }), 
+            { headers: { ...stealthHeaders, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+        );
+        const nonce = nonceRes.data.data;
+
+        // 2. Ambil Iframe
+        const iframeReq = { 
+            q: decoded.q, 
+            i: decoded.i.toString(), 
+            id: decoded.id.toString(), 
+            action: "2a3505c93b0035d3f455df82bf976b84", 
+            nonce: nonce 
+        };
+        const iframeRes = await axios.post(`${baseUrl}/wp-admin/admin-ajax.php`, 
+            qs.stringify(iframeReq), 
+            { headers: { ...stealthHeaders, 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+        );
+
+        const iframeHtml = Buffer.from(iframeRes.data.data, 'base64').toString('ascii');
+        let iframeUrl = cheerio.load(iframeHtml)('iframe').attr('src');
+        if (!iframeUrl) throw new Error('Gagal mendapatkan URL Iframe.');
+        if (iframeUrl.startsWith('//')) iframeUrl = 'https:' + iframeUrl;
+
+        // 3. Bongkar Isi Iframe untuk link mentah
+        const embedRes = await axios.get(iframeUrl, { headers: stealthHeaders, timeout: 10000 });
+        let body = embedRes.data;
+
+        // Unpacker P.A.C.K.E.R jika ada
+        if (body.includes('eval(function(p,a,c,k,e,d)')) {
+            const pMatch = body.match(/}\('(.*?)',\s*(\d+),\s*(\d+),\s*'([^']+)'\.split/s);
+            if (pMatch) {
+                let p = pMatch[1], a = parseInt(pMatch[2]), c = parseInt(pMatch[3]), k = pMatch[4].split('|');
+                let e = (c) => (c < a ? '' : e(parseInt(c / a))) + ((c = c % a) > 35 ? String.fromCharCode(c + 29) : c.toString(36));
+                while (c--) if (k[c]) body = body.replace(new RegExp('\\b' + e(c) + '\\b', 'g'), k[c]);
+            }
+        }
+
+        const videoRegex = /(https?:\/\/[^\s\'\"]+\.(?:m3u8|mp4)[^\s\'\"]*)/i;
+        const match = body.match(videoRegex);
+
+        if (match) {
+            console.log(`[CRACKER] BERHASIL! Link Video: ${match[1]}`);
+            return res.json({
+                status: 'success',
+                url: match[1],
+                isEmbed: false,
+                embedUrl: iframeUrl
+            });
+        }
+
+        console.log(`[CRACKER] Gagal nemu link mentah, kirim Iframe.`);
+        res.json({
+            status: 'success',
+            url: iframeUrl,
+            isEmbed: true,
+            embedUrl: iframeUrl
+        });
+
+    } catch (error) {
+        console.error('[CRACKER] Error:', error.message);
         res.status(500).json({ status: 'error', message: error.message });
     }
 });
