@@ -160,6 +160,38 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
+app.get('/api/animelist', async (req, res) => {
+    const cacheKey = 'animelist_otaku';
+    const saved = cache.get(cacheKey);
+    if (saved) return res.json({ status: "success", data: saved });
+
+    try {
+        console.log(`[OTAKU] Memanggil Daftar Abjad...`);
+        const response = await axios.get(`${baseUrl}/anime-list/`, { headers: stealthHeaders, timeout: 15000 });
+        const $ = cheerio.load(response.data);
+        const animeList = [];
+
+        $('#abcontent .bariskelom .barislist ul li a.hodebgst').each((i, el) => {
+            const title = $(el).text().trim();
+            const href = $(el).attr('href');
+
+            if (title && title !== '#' && href) {
+                animeList.push({ name: title, url: href, image: null, status: "A-Z" });
+            }
+        });
+
+        if (animeList.length > 0) {
+            cache.set(cacheKey, animeList, 3600); // Cache lebih lama (1 jam)
+            res.json({ status: "success", data: animeList });
+        } else {
+            res.json({ status: "success", data: [] });
+        }
+    } catch (e) {
+        console.error('Error AnimeList:', e.message);
+        res.status(500).json({ status: "error", message: e.message });
+    }
+});
+
 app.get('/api/schedule', async (req, res) => {
     try {
         console.log(`[JADWAL] Mengambil jadwal rilis terbaru dari ongoing-anime...`);
