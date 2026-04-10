@@ -358,10 +358,37 @@ app.post('/api/episode/crack', async (req, res) => {
         if (iframeUrl.startsWith('//')) iframeUrl = 'https:' + iframeUrl;
 
         // 3. Bongkar Isi Iframe untuk link mentah
-        const embedRes = await axios.get(iframeUrl, { headers: stealthHeaders, timeout: 10000 });
+        // Gunakan Referer yang tepat untuk menghindari 403 (khusus anime lawas)
+        const embedRes = await axios.get(iframeUrl, { 
+            headers: { 
+                ...stealthHeaders, 
+                'Referer': baseUrl 
+            }, 
+            timeout: 10000 
+        });
         let body = embedRes.data;
 
-        // --- TANGKAP COOKIE (Kunci Rahasia) ---
+        // --- EKSTRAKSI KHUSUS DESUSTREAM (Mirror Populer Anime Lama) ---
+        const desuMatch = body.match(/otakudesu\('(\{.*?\})'\)/);
+        if (desuMatch && desuMatch[1]) {
+            try {
+                const desuData = JSON.parse(desuMatch[1]);
+                if (desuData.file) {
+                    console.log(`[CRACKER] DESUSTREAM DETECTED! Link: ${desuData.file}`);
+                    return res.json({
+                        status: 'success',
+                        url: desuData.file,
+                        isEmbed: false,
+                        embedUrl: iframeUrl,
+                        cookie: cleanCookie
+                    });
+                }
+            } catch (jsError) {
+                console.log("[CRACKER] Gagal parse JSON Desustream.");
+            }
+        }
+
+        // --- EKSTRAKSI AGRESIF (TAMPALAN BARU) ---
         let cleanCookie = '';
         const rawCookies = embedRes.headers['set-cookie'];
         if (rawCookies) {
