@@ -304,6 +304,16 @@ app.post('/api/episode/crack', async (req, res) => {
         const embedRes = await axios.get(iframeUrl, { headers: stealthHeaders, timeout: 10000 });
         let body = embedRes.data;
 
+        // --- TANGKAP COOKIE (Kunci Rahasia) ---
+        let cleanCookie = '';
+        const rawCookies = embedRes.headers['set-cookie'];
+        if (rawCookies) {
+            // Gabungkan semua cookie jadi satu string format Header
+            cleanCookie = (Array.isArray(rawCookies) ? rawCookies : [rawCookies])
+                .map(c => c.split(';')[0])
+                .join('; ');
+        }
+
         // Unpacker P.A.C.K.E.R jika ada
         if (body.includes('eval(function(p,a,c,k,e,d)')) {
             const pMatch = body.match(/}\('(.*?)',\s*(\d+),\s*(\d+),\s*'([^']+)'\.split/s);
@@ -323,7 +333,8 @@ app.post('/api/episode/crack', async (req, res) => {
                 status: 'success',
                 url: match[1],
                 isEmbed: false,
-                embedUrl: iframeUrl
+                embedUrl: iframeUrl,
+                cookie: cleanCookie
             });
         }
 
@@ -332,7 +343,8 @@ app.post('/api/episode/crack', async (req, res) => {
             status: 'success',
             url: iframeUrl,
             isEmbed: true,
-            embedUrl: iframeUrl
+            embedUrl: iframeUrl,
+            cookie: cleanCookie
         });
 
     } catch (error) {
