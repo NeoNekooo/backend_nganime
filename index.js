@@ -235,13 +235,16 @@ app.get('/api/anime/detail', async (req, res) => {
         const $ = cheerio.load(response.data);
 
         const episodes = [];
-        $('.episodelist ul li').each((i, el) => {
-            const a = $(el).find('span a').first();
-            const title = a.text().trim();
-            const href = a.attr('href');
-            if (href && title && !title.toLowerCase().includes('batch')) {
-                episodes.push({ title: title, url: href });
-            }
+        $('.episodelist ul').each((i, ul) => {
+            $(ul).find('li').each((j, el) => {
+                const a = $(el).find('a').first();
+                const title = a.text().trim();
+                const href = a.attr('href');
+                
+                if (href && title && !title.toLowerCase().includes('batch')) {
+                    episodes.push({ title: title, url: href });
+                }
+            });
         });
 
         res.json({
@@ -341,6 +344,16 @@ app.post('/api/episode/crack', async (req, res) => {
 
         const iframeHtml = Buffer.from(iframeRes.data.data, 'base64').toString('ascii');
         let iframeUrl = cheerio.load(iframeHtml)('iframe').attr('src');
+        
+        // --- FALLBACK: Kalo cara AJAX gagal, coba cari manual di body (khusus anime lawas) ---
+        if (!iframeUrl) {
+            console.log("[CRACKER] AJAX Gagal, Mencoba teknik Regex Fallback...");
+            const regexMatches = body.match(/<iframe.*?src="(.*?)"/);
+            if (regexMatches && regexMatches[1]) {
+                iframeUrl = regexMatches[1];
+            }
+        }
+
         if (!iframeUrl) throw new Error('Gagal mendapatkan URL Iframe.');
         if (iframeUrl.startsWith('//')) iframeUrl = 'https:' + iframeUrl;
 
