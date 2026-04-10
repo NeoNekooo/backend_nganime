@@ -70,10 +70,13 @@ async function scrapeOtakuList(url, cacheKey) {
 
         $('.venz ul li').each((i, el) => {
             const anchor = $(el).find('a').first();
-            const title = $(el).find('.jdlflm').text().trim();
+            const title = $(el).find('.jdlflm').text().trim() || $(el).find('h2').text().trim();
             const image = $(el).find('img').attr('src');
             const href = anchor.attr('href');
-            const status = $(el).find('.epz').text().trim();
+            let status = $(el).find('.epz').text().trim();
+            
+            // Fallback status buat list yang beda format
+            if (!status) status = $(el).find('.newepisode').text().trim();
 
             if (title && href) {
                 animeList.push({ name: title, image: image, url: href, status: status });
@@ -108,12 +111,16 @@ function decodeDesuLink(url) {
 // --- ENDPOINTS ---
 
 app.get('/api/ongoing', async (req, res) => {
-    const data = await scrapeOtakuList(`${baseUrl}/ongoing-anime/`, 'ongoing_otaku');
+    const page = req.query.page || 1;
+    const url = page > 1 ? `${baseUrl}/ongoing-anime/page/${page}/` : `${baseUrl}/ongoing-anime/`;
+    const data = await scrapeOtakuList(url, `ongoing_otaku_p${page}`);
     res.json({ status: "success", data: data });
 });
 
 app.get('/api/complete', async (req, res) => {
-    const data = await scrapeOtakuList(`${baseUrl}/complete-anime/`, 'complete_otaku');
+    const page = req.query.page || 1;
+    const url = page > 1 ? `${baseUrl}/complete-anime/page/${page}/` : `${baseUrl}/complete-anime/`;
+    const data = await scrapeOtakuList(url, `complete_otaku_p${page}`);
     res.json({ status: "success", data: data });
 });
 
