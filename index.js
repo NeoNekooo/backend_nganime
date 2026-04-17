@@ -6,9 +6,15 @@ const cheerio = require('cheerio');
 const qs = require('qs');
 const NodeCache = require('node-cache');
 const { Odesus } = require('odesus');
+const fs = require('fs');
+const path = require('path');
+const cacheManager = require('./cache_manager');
 
 const app = express();
 const port = process.env.PORT || 4000;
+
+// Inisialisasi Cache Manager (7GB Limit)
+cacheManager.init();
 const otakudesu = new Odesus();
 const baseUrl = 'https://otakudesu.blog';
 const OTAKU_BASE = 'https://otakudesu.asia/';
@@ -56,6 +62,51 @@ const stealthHeaders = {
     'Referer': baseUrl,
     'Connection': 'keep-alive'
 };
+
+/**
+ * --- DEEP CRACK ENGINE (KHUSUS ANIME LAMA) ---
+ * Membedah Iframe/Embed untuk mencari link MP4 mentah
+ */
+async function deepCrack(url) {
+    try {
+        console.log(`[DEEP-CRACK] Mencoba membedah: ${url}`);
+        const response = await axios.get(url, { 
+            headers: { 
+                ...stealthHeaders, 
+                'Referer': 'https://otakudesu.asia/' 
+            },
+            timeout: 10000 
+        });
+        const html = response.data;
+
+        // 1. Pola YourUpload
+        if (url.includes('yourupload.com')) {
+            const match = html.match(/file:\s*['"](https?:\/\/[^'"]+?\.mp4[^'"]*?)['"]/);
+            if (match) return match[1];
+        }
+
+        // 2. Pola Filemoon / Filedon
+        if (url.includes('filemoon.sx') || url.includes('filedon.to')) {
+            const match = html.match(/sources:\s*\[\s*\{\s*file:\s*['"](https?:\/\/[^'"]+?)['"]/);
+            if (match) return match[1];
+        }
+
+        // 3. Pola Mp4Upload
+        if (url.includes('mp4upload.com')) {
+            const match = html.match(/player\.src\(['"](https?:\/\/[^'"]+?\.mp4)['"]/);
+            if (match) return match[1];
+        }
+
+        // 4. Pola Universal (Cari apa aja yang berakhiran .mp4)
+        const universalMatch = html.match(/(https?:\/\/[^\s\'\"]+\.(?:mp4|m3u8)[^\s\'\"]*)/i);
+        if (universalMatch) return universalMatch[1];
+
+        return null;
+    } catch (e) {
+        console.error(`[DEEP-CRACK] Gagal: ${e.message}`);
+        return null;
+    }
+}
 
 // Helper: Scrape List Anime
 async function scrapeOtakuList(url, cacheKey) {
@@ -567,6 +618,86 @@ app.get('/api/episode/player', async (req, res) => {
     } catch (e) {
         console.error(`[VIDEO FAIL] ${e.message}`);
         res.status(500).json({ status: "error", message: e.message });
+    }
+});
+
+// --- 3. PROXY & CACHE SYSTEM (THE "ANTI-403" ENGINE) ---
+app.get('/api/proxy/video', async (req, res) => {
+    const { url, id } = req.query;
+    if (!url || !id) return res.status(400).json({ status: "error", message: "URL dan ID wajib ada." });
+
+    const cachedPath = cacheManager.getCachePath(id);
+
+    // Kalo udah ada di server, sikat lupakan mirror!
+    if (cachedPath) {
+        console.log(`[PROXY] Serving from Cache: ${id}`);
+        return res.sendFile(cachedPath);
+    }
+
+    // Kalo belum ada, kita jadi perantara (Proxy)
+    try {
+        let targetUrl = url;
+
+        // --- CEK APAKAH INI LINK EMBED (ANIME LAMA) ---
+        // Jika tidak berakhiran .mp4/.m3u8, kemungkinan besar ini Iframe
+        if (!url.includes('.mp4') && !url.includes('.m3u8') && !url.includes('delivery')) {
+            console.log(`[PROXY] Mendeteksi Link Embed (Anime Lama). Menjalankan Deep Cracker...`);
+            const crackedUrl = await deepCrack(url);
+            if (crackedUrl) {
+                console.log(`[PROXY] Deep Cracker Berhasil! Link Mentah: ${crackedUrl}`);
+                targetUrl = crackedUrl;
+            } else {
+                console.warn(`[PROXY] Deep Cracker Gagal. Melanjutkan dengan URL asli (mungkin akan gagal).`);
+            }
+        }
+
+        console.log(`[PROXY] Streaming Mirror: ${targetUrl}`);
+        
+        // Panggil mirror asli
+        const response = await axios({
+            method: 'get',
+            url: targetUrl,
+            responseType: 'stream',
+            headers: { 
+                'Referer': targetUrl.includes('yourupload') ? 'https://www.yourupload.com/' : OTAKU_BASE, 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+            },
+            timeout: 30000
+        });
+
+        const contentType = response.headers['content-type'] || 'video/mp4';
+        const contentLength = parseInt(response.headers['content-length'] || 0);
+
+        // Kasih tau HP kita kalau ini videonya
+        res.setHeader('Content-Type', contentType);
+        if (contentLength) res.setHeader('Content-Length', contentLength);
+
+        // SETUP CACHE BACKGROUND
+        // Kita simpen ke disk sambil ngirim datanya ke user
+        cacheManager.ensureSpace(contentLength);
+        const fileName = `${id}.mp4`;
+        const tempPath = path.join(cacheManager.VIDEOS_DIR, `temp_${fileName}`);
+        const writer = fs.createWriteStream(tempPath);
+
+        // Pipe simultaneously
+        response.data.pipe(res); // Kirim ke HP user biar bisa langsung ditonton
+        response.data.pipe(writer); // Simpen ke server buat diputer lagi nanti tanpa quota mirror
+
+        writer.on('finish', () => {
+            const finalPath = path.join(cacheManager.VIDEOS_DIR, fileName);
+            fs.renameSync(tempPath, finalPath);
+            console.log(`[CACHE] Sukses mengamankan video: ${id}`);
+            cacheManager.registerCache(id, fileName, contentLength);
+        });
+
+        writer.on('error', (err) => {
+            console.error(`[CACHE] Gagal nulis video ke disk: ${err.message}`);
+            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        });
+
+    } catch (e) {
+        console.error(`[PROXY FAIL] ${e.message}`);
+        res.status(500).json({ status: "error", message: "Gagal memproses proxy video: " + e.message });
     }
 });
 
