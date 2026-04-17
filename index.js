@@ -98,8 +98,15 @@ async function deepCrack(url) {
         }
 
         // 4. Pola Universal (Cari apa aja yang berakhiran .mp4)
-        const universalMatch = html.match(/(https?:\/\/[^\s\'\"]+\.(?:mp4|m3u8)[^\s\'\"]*)/i);
-        if (universalMatch) return universalMatch[1];
+        // Kita perketat agar tidak mengambil link sembarangan
+        const universalMatch = html.match(/(https?:\/\/[^\s\'\"]+\.(?:mp4|m3u8)(?:\?[^\s\'\"]*)?)/i);
+        if (universalMatch) {
+            const found = universalMatch[1];
+            // Pastikan bukan link ke script atau css yang nempel keyword .mp4
+            if (!found.includes('.js') && !found.includes('.css')) {
+                return found;
+            }
+        }
 
         return null;
     } catch (e) {
@@ -666,15 +673,10 @@ app.get('/api/proxy/video', async (req, res) => {
         });
 
         const contentType = response.headers['content-type'] || 'video/mp4';
-        const contentLength = parseInt(response.headers['content-length'] || 0);
+        const contentLength = parseInt(response.headers['content-length'] || '0');
 
-        // Kasih tau HP kita kalau ini videonya
-        res.setHeader('Content-Type', contentType);
-        if (contentLength) res.setHeader('Content-Length', contentLength);
+        console.log(`[PROXY] Memulai streaming. Type: ${contentType}, Size: ${contentLength} bytes`);
 
-        // SETUP CACHE BACKGROUND
-        // Kita simpen ke disk sambil ngirim datanya ke user
-        cacheManager.ensureSpace(contentLength);
         const fileName = `${id}.mp4`;
         const tempPath = path.join(cacheManager.VIDEOS_DIR, `temp_${fileName}`);
         const writer = fs.createWriteStream(tempPath);
